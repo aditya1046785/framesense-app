@@ -41,9 +41,11 @@ export default function AnalyzeCurrentPage() {
                     </CardContent>
                     <CardFooter className="flex justify-between">
                          <Button variant="outline">Learn More</Button>
-                         <Button size="lg">
-                            Continue
-                         </Button>
+                         <Link href="/analyze-current/upload" passHref>
+                            <Button size="lg">
+                                Continue
+                            </Button>
+                         </Link>
                     </CardFooter>
                 </Card>
             </main>
