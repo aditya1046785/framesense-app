@@ -1,36 +1,142 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CheckCircle, RefreshCw, Share2, Download } from 'lucide-react';
+import { ArrowLeft, CheckCircle, RefreshCw, Share2, Download, AlertTriangle, XCircle, ThumbsUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+
+type FitCheck = {
+    verdict: 'good' | 'warning' | 'bad';
+    observation: string;
+};
 
 type AnalysisResults = {
-    style: string;
-    confidence: number;
-    suggestedSize: string;
-    similarShapes: string[];
-    recommendationText: string;
+    fitVerdict: string;
+    frameWidth: FitCheck;
+    bridgePosition: FitCheck;
+    templeLength: FitCheck;
+    analysisSummary: string;
 };
+
+const FitAspectCard = ({ aspect, title, result }: { aspect: string, title: string, result: FitCheck }) => {
+    const getIcon = () => {
+        switch (result.verdict) {
+            case 'good':
+                return <ThumbsUp className="w-6 h-6 text-green-500" />;
+            case 'warning':
+                return <AlertTriangle className="w-6 h-6 text-yellow-500" />;
+            case 'bad':
+                return <XCircle className="w-6 h-6 text-red-500" />;
+            default:
+                return null;
+        }
+    };
+    
+    const getBorderColor = () => {
+        switch (result.verdict) {
+            case 'good': return 'border-green-500/50';
+            case 'warning': return 'border-yellow-500/50';
+            case 'bad': return 'border-red-500/50';
+            default: return 'border-border';
+        }
+    }
+
+    return (
+        <Card className={`p-4 flex items-start gap-4 ${getBorderColor()}`}>
+            <div className="shrink-0 mt-1">{getIcon()}</div>
+            <div>
+                <h4 className="font-semibold">{title}</h4>
+                <p className="text-sm text-muted-foreground">{result.observation}</p>
+            </div>
+        </Card>
+    );
+};
+
 
 export default function AnalyzeCurrentResultsPage() {
     const router = useRouter();
+    const { toast } = useToast();
     const [results, setResults] = useState<AnalysisResults | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const resultsRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const storedResults = sessionStorage.getItem('analysisResults');
         if (storedResults) {
-            setResults(JSON.parse(storedResults));
+            try {
+                const parsedResults = JSON.parse(storedResults);
+                // Basic validation to ensure it has the expected structure
+                if (parsedResults.fitVerdict && parsedResults.frameWidth) {
+                     setResults(parsedResults);
+                } else {
+                    throw new Error("Invalid results format");
+                }
+            } catch (e) {
+                console.error("Failed to parse analysis results:", e);
+                router.push('/analyze-current');
+            }
+           
         } else {
-            // Redirect if no results are found
             router.push('/analyze-current');
         }
         setIsLoading(false);
     }, [router]);
+
+    const generateReportText = () => {
+        if (!results) return "";
+        return `
+FrameSense Fit Analysis Report
+==============================
+
+Overall Verdict: ${results.fitVerdict}
+
+Detailed Breakdown:
+- Frame Width: [${results.frameWidth.verdict.toUpperCase()}] ${results.frameWidth.observation}
+- Bridge Position: [${results.bridgePosition.verdict.toUpperCase()}] ${results.bridgePosition.observation}
+- Temple Length: [${results.templeLength.verdict.toUpperCase()}] ${results.templeLength.observation}
+
+Pro's Analysis:
+${results.analysisSummary}
+        `.trim();
+    }
+    
+    const handleShare = async () => {
+        const reportText = generateReportText();
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'My FrameSense Fit Analysis',
+                    text: reportText,
+                });
+            } catch (error) {
+                console.error('Error sharing:', error);
+                toast({ title: "Sharing failed", description: "Could not share the report."});
+            }
+        } else {
+            // Fallback to clipboard
+            navigator.clipboard.writeText(reportText).then(() => {
+                toast({ title: "Copied to Clipboard", description: "Analysis results copied to your clipboard." });
+            }).catch(err => {
+                toast({ variant: "destructive", title: "Copy Failed", description: "Could not copy results to clipboard." });
+            });
+        }
+    };
+
+    const handleDownload = () => {
+        const reportText = generateReportText();
+        const blob = new Blob([reportText], { type: 'text/plain' });
+        const href = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = href;
+        link.download = 'FrameSense-Fit-Report.txt';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(href);
+    };
 
     if (isLoading) {
         return (
@@ -41,8 +147,6 @@ export default function AnalyzeCurrentResultsPage() {
     }
     
     if (!results) {
-        // This can happen if the user navigates directly to this page
-        // or if session storage is cleared.
         return (
              <div className="flex flex-col min-h-screen bg-background text-foreground items-center justify-center">
                 <p>No analysis results found. Please start a new analysis.</p>
@@ -52,10 +156,8 @@ export default function AnalyzeCurrentResultsPage() {
             </div>
         )
     }
-
-    const { style, confidence, suggestedSize, similarShapes, recommendationText } = results;
-
-    const confidencePercentage = (confidence * 100).toFixed(0);
+    
+    const { fitVerdict, frameWidth, bridgePosition, templeLength, analysisSummary } = results;
 
     return (
         <div className="flex flex-col min-h-screen bg-background text-foreground">
@@ -68,40 +170,32 @@ export default function AnalyzeCurrentResultsPage() {
                 </div>
             </header>
             <main className="flex-grow flex items-center justify-center p-4">
-                <Card className="w-full max-w-3xl">
+                <Card className="w-full max-w-3xl" ref={resultsRef}>
                     <CardHeader>
                         <CardTitle className="text-3xl font-headline flex items-center gap-3">
-                            <CheckCircle className="w-8 h-8 text-green-500" />
-                            Analysis Complete
+                            <CheckCircle className="w-8 h-8 text-primary" />
+                            Fit Analysis Complete
                         </CardTitle>
-                        <CardDescription>Here's the breakdown of your current glasses' fit.</CardDescription>
+                        <CardDescription>Here's the professional breakdown of your current glasses' fit.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="grid md:grid-cols-2 gap-6">
-                            <Card className="p-4">
-                                <h3 className="font-semibold text-lg mb-2">Frame Style</h3>
-                                <p className="text-2xl font-bold text-primary capitalize">{style}</p>
-                                <p className="text-sm text-muted-foreground">Confidence: {confidencePercentage}%</p>
-                            </Card>
-                            <Card className="p-4">
-                                <h3 className="font-semibold text-lg mb-2">Suggested Size</h3>
-                                <p className="text-2xl font-bold text-primary">{suggestedSize}</p>
-                                <p className="text-sm text-muted-foreground">General fit category</p>
-                            </Card>
+                        <Card className="bg-secondary p-6">
+                            <h3 className="text-lg font-semibold text-center text-secondary-foreground mb-1">Overall Fit Verdict</h3>
+                            <p className="text-3xl font-bold text-primary text-center">{fitVerdict}</p>
+                        </Card>
+                        
+                        <div className="grid md:grid-cols-1 gap-4">
+                           <FitAspectCard aspect="frameWidth" title="Frame Width" result={frameWidth} />
+                           <FitAspectCard aspect="bridgePosition" title="Bridge Position" result={bridgePosition} />
+                           <FitAspectCard aspect="templeLength" title="Temple Length" result={templeLength} />
                         </div>
-
+                        
                          <Card>
                             <CardHeader>
-                                <CardTitle className="text-xl">Detailed Recommendations</CardTitle>
+                                <CardTitle className="text-xl">Pro's Analysis</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-muted-foreground mb-4">{recommendationText}</p>
-                                <div className="flex flex-wrap gap-2">
-                                    <h4 className="font-semibold w-full">You might also like:</h4>
-                                    {similarShapes.map((shape) => (
-                                        <Badge key={shape} variant="secondary" className="capitalize">{shape}</Badge>
-                                    ))}
-                                </div>
+                                <p className="text-muted-foreground">{analysisSummary}</p>
                             </CardContent>
                         </Card>
                     </CardContent>
@@ -113,11 +207,11 @@ export default function AnalyzeCurrentResultsPage() {
                             </Button>
                         </Link>
                          <div className="flex gap-2 w-full sm:w-auto">
-                            <Button className="w-full" variant="outline">
+                            <Button className="w-full" variant="outline" onClick={handleShare}>
                                 <Share2 className="mr-2 h-4 w-4" />
                                 Share
                             </Button>
-                            <Button className="w-full">
+                            <Button className="w-full" onClick={handleDownload}>
                                 <Download className="mr-2 h-4 w-4" />
                                 Download Report
                             </Button>

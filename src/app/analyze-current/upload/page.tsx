@@ -11,8 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { classifyFrameStyle } from '@/ai/flows/classify-frame-style';
-import { generateSizeRecommendations } from '@/ai/flows/generate-size-recommendations';
+import { analyzeFit } from '@/ai/flows/analyze-fit';
 import Camera from '@/components/Camera';
 
 type FileState = {
@@ -70,25 +69,16 @@ export default function AnalyzeCurrentUploadPage() {
     setIsLoading(true);
 
     try {
-      const framePhotoDataUri = await fileToDataUri(frontSelfie.file);
-      const placeholderMeasurements = {
-        lensWidth: 50,
-        bridgeWidth: 18,
-        templeLength: 145,
-      };
-
-      const [styleResult, recommendationsResult] = await Promise.all([
-        classifyFrameStyle({ framePhotoDataUri }),
-        generateSizeRecommendations(placeholderMeasurements),
+      const [frontSelfieDataUri, sideSelfieDataUri] = await Promise.all([
+        fileToDataUri(frontSelfie.file),
+        fileToDataUri(sideSelfie.file)
       ]);
 
-      const results = {
-        ...styleResult,
-        ...recommendationsResult
-      }
-
+      const results = await analyzeFit({ frontSelfieDataUri, sideSelfieDataUri });
+      
       sessionStorage.setItem('analysisResults', JSON.stringify(results));
       router.push('/analyze-current/results');
+
     } catch (error) {
       console.error("Analysis failed:", error);
       toast({
