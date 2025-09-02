@@ -156,6 +156,16 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
                     <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay muted playsInline />
                     <canvas ref={canvasRef} className="hidden" />
 
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <svg viewBox="0 0 100 100" className="w-2/3 h-2/3 opacity-30" preserveAspectRatio="xMidYMid meet">
+                           <path d="M 50,10 A 40,45 0 0,1 50,90 A 40,45 0 0,1 50,10 Z" stroke="white" strokeWidth="2" fill="none" strokeDasharray="4 2" />
+                        </svg>
+                    </div>
+
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-black/50 px-3 py-1 rounded-full">
+                        Position your face inside the oval
+                    </div>
+
                     {feedback?.message && (
                         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-sm font-medium px-3 py-1.5 rounded-full flex items-center shadow-lg">
                            {feedback.icon}
