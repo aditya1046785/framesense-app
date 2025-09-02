@@ -1,53 +1,61 @@
+"use client";
+
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function PrivacyPage() {
+    const { t } = useLanguage();
+
     return (
         <div className="bg-background text-foreground flex flex-col min-h-screen">
             <Header />
             <main className="flex-grow container mx-auto py-12 px-4 max-w-4xl">
                 <Link href="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8">
                     <ArrowLeft className="h-4 w-4" />
-                    Back to Home
+                    {t('common.backToHome')}
                 </Link>
-                <h1 className="text-4xl font-bold font-headline mb-8">Privacy Policy</h1>
+                <h1 className="text-4xl font-bold font-headline mb-8">{t('privacy.title')}</h1>
                 <div className="space-y-8 text-muted-foreground leading-relaxed">
                     <section className="space-y-3">
-                        <h2 className="text-2xl font-semibold font-headline text-foreground">1. Introduction</h2>
-                        <p>Welcome to FrameSense. We are committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our web application.</p>
+                        <h2 className="text-2xl font-semibold font-headline text-foreground">{t('privacy.section1.title')}</h2>
+                        <p>{t('privacy.section1.content')}</p>
                     </section>
                     
                     <section className="space-y-3">
-                        <h2 className="text-2xl font-semibold font-headline text-foreground">2. Information We Collect</h2>
-                        <p>We are a privacy-first service. We are designed to collect the minimum information necessary to provide our service:</p>
+                        <h2 className="text-2xl font-semibold font-headline text-foreground">{t('privacy.section2.title')}</h2>
+                        <p>{t('privacy.section2.intro')}</p>
                         <ul className="list-disc list-inside pl-4 space-y-2">
-                            <li><strong>Images:</strong> We require you to provide images (selfies, photos of frames) to perform our fit analysis. These images are used solely for the analysis and are deleted immediately after processing. We do not store your images.</li>
-                            <li><strong>Analysis Results:</strong> We store the anonymized text-based results of the analysis (e.g., measurements, fit verdict) for 30 days to allow you to access your report via a shareable link. After 30 days, this data is automatically deleted.</li>
-                            <li><strong>Contact Information (Optional):</strong> If you choose to send your report via email or SMS, we collect your email address or phone number. This information is used only to send the report and is not stored long-term or used for marketing purposes.</li>
+                            <li><strong>{t('privacy.section2.item1.title')}:</strong> {t('privacy.section2.item1.content')}</li>
+                            <li><strong>{t('privacy.section2.item2.title')}:</strong> {t('privacy.section2.item2.content')}</li>
+                            <li><strong>{t('privacy.section2.item3.title')}:</strong> {t('privacy.section2.item3.content')}</li>
                         </ul>
                     </section>
 
                     <section className="space-y-3">
-                        <h2 className="text-2xl font-semibold font-headline text-foreground">3. How We Use Your Information</h2>
-                        <p>We use the information we collect strictly to:</p>
+                        <h2 className="text-2xl font-semibold font-headline text-foreground">{t('privacy.section3.title')}</h2>
+                        <p>{t('privacy.section3.intro')}</p>
                         <ul className="list-disc list-inside pl-4 space-y-2">
-                            <li>Provide, operate, and maintain our service.</li>
-                            <li>Perform the eyeglass fit analysis.</li>
-                            <li>Generate and deliver your fit report if you request it.</li>
-                            <li>Improve our service based on fully anonymized usage data and feedback.</li>
+                            <li>{t('privacy.section3.item1')}</li>
+                            <li>{t('privacy.section3.item2')}</li>
+                            <li>{t('privacy.section3.item3')}</li>
+                            <li>{t('privacy.section3.item4')}</li>
                         </ul>
                     </section>
                     
                     <section className="space-y-3">
-                        <h2 className="text-2xl font-semibold font-headline text-foreground">4. Data Deletion</h2>
-                        <p>We take data deletion very seriously. All images you provide are deleted from our servers immediately after the analysis is complete. Anonymized text results are deleted after 30 days. We do not create user accounts, so there is no personal data to manage beyond the temporary analysis results.</p>
+                        <h2 className="text-2xl font-semibold font-headline text-foreground">{t('privacy.section4.title')}</h2>
+                        <p>{t('privacy.section4.content')}</p>
                     </section>
                     
                     <section className="space-y-3">
-                        <h2 className="text-2xl font-semibold font-headline text-foreground">5. Contact Us</h2>
-                        <p>If you have any questions about this Privacy Policy, please contact us at <a href="mailto:privacy@framesense.example.com" className="text-primary hover:underline">privacy@framesense.example.com</a>.</p>
+                        <h2 className="text-2xl font-semibold font-headline text-foreground">{t('privacy.section5.title')}</h2>
+                        <p>
+                            {t('privacy.section5.content')}
+                            <a href="mailto:privacy@framesense.example.com" className="text-primary hover:underline">privacy@framesense.example.com</a>.
+                        </p>
                     </section>
                 </div>
             </main>
