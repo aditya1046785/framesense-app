@@ -4,8 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Camera as CameraIcon, Video, VideoOff } from 'lucide-react';
+import { Camera as CameraIcon, VideoOff, Sun, Moon } from 'lucide-react';
 
 interface CameraProps {
     isOpen: boolean;
@@ -13,12 +12,77 @@ interface CameraProps {
     onCapture: (dataUri: string) => void;
 }
 
+// Constants for lighting analysis
+const GOOD_LIGHT_THRESHOLD = 120; // Average brightness for "good" light
+const DARK_LIGHT_THRESHOLD = 70; // Below this is "too dark"
+const BRIGHT_LIGHT_THRESHOLD = 180; // Above this is "too bright"
+const ANALYSIS_INTERVAL = 1000; // ms
+
 export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
     const { toast } = useToast();
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
+    const [feedback, setFeedback] = useState<{ message: string; icon: React.ReactNode } | null>(null);
+    const intervalRef = useRef<NodeJS.Timeout>();
+
+
+    const stopAnalysis = () => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = undefined;
+        }
+        setFeedback(null);
+    };
+
+    const startAnalysis = () => {
+        stopAnalysis(); // Ensure no multiple intervals are running
+
+        intervalRef.current = setInterval(() => {
+            if (!videoRef.current || !canvasRef.current || videoRef.current.paused || videoRef.current.ended) {
+                return;
+            }
+
+            const canvas = canvasRef.current;
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            if (!context) return;
+            
+            // Set canvas dimensions to match video to avoid distortion
+            canvas.width = videoRef.current.videoWidth;
+            canvas.height = videoRef.current.videoHeight;
+            
+            if (canvas.width === 0 || canvas.height === 0) return;
+
+            context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            let totalBrightness = 0;
+
+            // Sample a subset of pixels for performance
+            for (let i = 0; i < data.length; i += 4 * 10) { // Sample every 10th pixel
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                // Using luminance formula for better brightness perception
+                const brightness = (0.299 * r + 0.587 * g + 0.114 * b);
+                totalBrightness += brightness;
+            }
+
+            const avgBrightness = totalBrightness / (data.length / 40);
+
+            if (avgBrightness < DARK_LIGHT_THRESHOLD) {
+                setFeedback({ message: 'Lighting is too dark', icon: <Moon className="w-5 h-5 mr-2" /> });
+            } else if (avgBrightness > BRIGHT_LIGHT_THRESHOLD) {
+                setFeedback({ message: 'Lighting is too bright', icon: <Sun className="w-5 h-5 mr-2" /> });
+            } else {
+                 setFeedback({ message: 'Looking good!', icon: null });
+            }
+
+        }, ANALYSIS_INTERVAL);
+    };
+
 
     const getCameraPermission = useCallback(async () => {
         if (stream) return;
@@ -42,23 +106,28 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
         if (isOpen) {
             getCameraPermission();
         } else {
-            // Stop camera stream when dialog is closed
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 setStream(null);
             }
+            stopAnalysis();
         }
         
         return () => {
              if (stream) {
                 stream.getTracks().forEach(track => track.stop());
             }
+            stopAnalysis();
         }
-    }, [isOpen, getCameraPermission, stream]);
+    }, [isOpen, getCameraPermission]);
+
 
     useEffect(() => {
         if (stream && videoRef.current) {
             videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => {
+                startAnalysis();
+            };
         }
     }, [stream]);
 
@@ -86,6 +155,14 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
                 <div className="relative">
                     <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay muted playsInline />
                     <canvas ref={canvasRef} className="hidden" />
+
+                    {feedback?.message && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-sm font-medium px-3 py-1.5 rounded-full flex items-center shadow-lg">
+                           {feedback.icon}
+                           {feedback.message}
+                        </div>
+                    )}
+                    
                     {hasCameraPermission === false && (
                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-md">
                             <VideoOff className="w-16 h-16 text-destructive mb-4" />
