@@ -24,20 +24,20 @@ export type GenerateSizeRecommendationsInput = z.infer<
 >;
 
 const GenerateSizeRecommendationsOutputSchema = z.object({
-  suggestedSizeRange: z
+  suggestedSize: z
     .string()
     .describe(
-      'A suggested size range for eyeglasses, formatted as lensWidth-bridgeWidth-templeLength (e.g., 52-18-140).'
+      'A general size category for the user, such as "Narrow", "Medium", or "Wide".'
     ),
   similarShapes: z
     .array(z.string())
     .describe(
-      'An array of similar eyeglass shapes that tend to fit the user (e.g., round, rectangle, aviator).'
+      'An array of eyeglass shapes that are likely to fit the user well (e.g., round, rectangle, aviator).'
     ),
   recommendationText: z
     .string()
     .describe(
-      'A human-readable string providing detailed recommendations based on the analysis.'
+      'A friendly, easy-to-understand explanation of the recommendations, written for a general audience.'
     ),
 });
 export type GenerateSizeRecommendationsOutput = z.infer<
@@ -54,23 +54,27 @@ const prompt = ai.definePrompt({
   name: 'generateSizeRecommendationsPrompt',
   input: {schema: GenerateSizeRecommendationsInputSchema},
   output: {schema: GenerateSizeRecommendationsOutputSchema},
-  prompt: `Based on the provided eyeglass measurements and face shape, provide size and style recommendations.
+  prompt: `You are a friendly and helpful AI assistant for an eyeglass fitting app. Your goal is to provide recommendations that are easy for anyone to understand, avoiding technical jargon.
 
-Lens Width: {{{lensWidth}}} mm
-Bridge Width: {{{bridgeWidth}}} mm
-Temple Length: {{{templeLength}}} mm
-Face Shape: {{{faceShape}}}
+Analyze the user's measurements and face shape to suggest a general frame size and recommend flattering shapes.
 
-Consider the following when generating recommendations:
-- The suggested size range should be a reasonable range around the provided measurements.
-- Similar shapes should be shapes that are likely to fit the user's face shape and the provided measurements.
-- The recommendation text should be a detailed explanation of the recommendations.
+User's Measurements:
+- Lens Width: {{{lensWidth}}} mm
+- Bridge Width: {{{bridgeWidth}}} mm
+- Temple Length: {{{templeLength}}} mm
+- Face Shape: {{#if faceShape}}{{{faceShape}}}{{else}}Not provided{{/if}}
 
-Respond in the following format:
+**Your Task:**
+
+1.  **Determine the Size Category:** Based on the measurements, classify the best fit into a simple category: "Narrow", "Medium", or "Wide".
+2.  **Suggest Flattering Shapes:** Recommend a few frame shapes that would complement the user's measurements and face shape (if provided).
+3.  **Write a Friendly Recommendation:** Combine your analysis into a short, encouraging, and easy-to-read paragraph. Explain *why* these shapes might be a good choice in simple terms. For example, "Wider frames might balance a square face," or "Cat-eye styles can add a nice lift."
+
+**Example Response Format:**
 {
-  "suggestedSizeRange": "lensWidth-bridgeWidth-templeLength (e.g., 52-18-140)",
-  "similarShapes": ["shape1", "shape2", "shape3"],
-   "recommendationText": "Detailed explanation of the recommendations."
+  "suggestedSize": "Medium",
+  "similarShapes": ["Rectangle", "Oval", "Wayfarer"],
+  "recommendationText": "It looks like a medium-sized frame would be a great fit for you. Based on your features, rectangular or wayfarer styles could provide a nice, balanced look. If you're feeling adventurous, an oval frame could also be a very flattering choice!"
 }
 `,
 });

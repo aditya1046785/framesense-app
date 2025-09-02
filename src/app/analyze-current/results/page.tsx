@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 type AnalysisResults = {
     style: string;
     confidence: number;
-    suggestedSizeRange: string;
+    suggestedSize: string;
     similarShapes: string[];
     recommendationText: string;
 };
@@ -53,7 +53,7 @@ export default function AnalyzeCurrentResultsPage() {
         )
     }
 
-    const { style, confidence, suggestedSizeRange, similarShapes, recommendationText } = results;
+    const { style, confidence, suggestedSize, similarShapes, recommendationText } = results;
 
     const confidencePercentage = (confidence * 100).toFixed(0);
 
@@ -85,8 +85,8 @@ export default function AnalyzeCurrentResultsPage() {
                             </Card>
                             <Card className="p-4">
                                 <h3 className="font-semibold text-lg mb-2">Suggested Size</h3>
-                                <p className="text-2xl font-bold text-primary">{suggestedSizeRange}</p>
-                                <p className="text-sm text-muted-foreground">Lens-Bridge-Temple (mm)</p>
+                                <p className="text-2xl font-bold text-primary">{suggestedSize}</p>
+                                <p className="text-sm text-muted-foreground">General fit category</p>
                             </Card>
                         </div>
 
