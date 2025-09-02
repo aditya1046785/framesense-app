@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, ChangeEvent } from 'react';
+import { useState, ChangeEvent, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, UploadCloud, X } from 'lucide-react';
+import { ArrowLeft, Loader2, UploadCloud, X, Camera as CameraIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { classifyFrameStyle } from '@/ai/flows/classify-frame-style';
 import { generateSizeRecommendations } from '@/ai/flows/generate-size-recommendations';
+import Camera from '@/components/Camera';
 
 type FileState = {
   file: File | null;
@@ -31,13 +32,14 @@ const fileToDataUri = (file: File): Promise<string> => {
   });
 };
 
-
 export default function AnalyzeCurrentUploadPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [frontSelfie, setFrontSelfie] = useState<FileState>({ file: null, preview: null });
   const [sideSelfie, setSideSelfie] = useState<FileState>({ file: null, preview: null });
   const [isLoading, setIsLoading] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [activeCamera, setActiveCamera] = useState<'front' | 'side' | null>(null);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<FileState>>) => {
     const file = e.target.files?.[0];
@@ -54,57 +56,72 @@ export default function AnalyzeCurrentUploadPage() {
     const input = document.getElementById(inputId) as HTMLInputElement;
     if (input) input.value = "";
   };
-  
+
   const handleAnalyze = async () => {
     if (!frontSelfie.file || !sideSelfie.file) {
-        toast({
-            variant: "destructive",
-            title: "Missing Images",
-            description: "Please upload both front and side selfies.",
-        });
-        return;
+      toast({
+        variant: "destructive",
+        title: "Missing Images",
+        description: "Please upload both front and side selfies.",
+      });
+      return;
     }
 
     setIsLoading(true);
 
     try {
-        // We'll use the front selfie to classify the frame style.
-        const framePhotoDataUri = await fileToDataUri(frontSelfie.file);
+      const framePhotoDataUri = await fileToDataUri(frontSelfie.file);
+      const placeholderMeasurements = {
+        lensWidth: 50,
+        bridgeWidth: 18,
+        templeLength: 145,
+      };
 
-        // For this demo, we'll use a placeholder for measurements to generate recommendations
-        // In a real application, you would extract these from the images.
-        const placeholderMeasurements = {
-            lensWidth: 50,
-            bridgeWidth: 18,
-            templeLength: 145,
-        };
+      const [styleResult, recommendationsResult] = await Promise.all([
+        classifyFrameStyle({ framePhotoDataUri }),
+        generateSizeRecommendations(placeholderMeasurements),
+      ]);
 
-        const [styleResult, recommendationsResult] = await Promise.all([
-            classifyFrameStyle({ framePhotoDataUri }),
-            generateSizeRecommendations(placeholderMeasurements),
-        ]);
+      const results = {
+        ...styleResult,
+        ...recommendationsResult
+      }
 
-        const results = {
-            ...styleResult,
-            ...recommendationsResult
-        }
-
-        // Store results in session storage to pass to the results page
-        sessionStorage.setItem('analysisResults', JSON.stringify(results));
-        router.push('/analyze-current/results');
-
+      sessionStorage.setItem('analysisResults', JSON.stringify(results));
+      router.push('/analyze-current/results');
     } catch (error) {
-        console.error("Analysis failed:", error);
-        toast({
-            variant: "destructive",
-            title: "Analysis Failed",
-            description: "Something went wrong. Please try again.",
-        });
+      console.error("Analysis failed:", error);
+      toast({
+        variant: "destructive",
+        title: "Analysis Failed",
+        description: "Something went wrong. Please try again.",
+      });
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
+  const openCamera = (type: 'front' | 'side') => {
+    setActiveCamera(type);
+    setIsCameraOpen(true);
+  };
+  
+  const handleCapture = (dataUri: string) => {
+    const byteString = atob(dataUri.split(',')[1]);
+    const mimeString = dataUri.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    const blob = new Blob([ab], { type: mimeString });
+    const file = new File([blob], `${activeCamera}-selfie.jpg`, { type: mimeString });
+
+    const setter = activeCamera === 'front' ? setFrontSelfie : setSideSelfie;
+    setter({ file, preview: URL.createObjectURL(file) });
+    setIsCameraOpen(false);
+    setActiveCamera(null);
+  };
 
   const isAnalyzable = frontSelfie.file && sideSelfie.file;
 
@@ -112,10 +129,17 @@ export default function AnalyzeCurrentUploadPage() {
     id: string,
     label: string,
     fileState: FileState,
-    setter: React.Dispatch<React.SetStateAction<FileState>>
+    setter: React.Dispatch<React.SetStateAction<FileState>>,
+    cameraType: 'front' | 'side'
   ) => (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <div className="flex justify-between items-center">
+        <Label htmlFor={id}>{label}</Label>
+        <Button variant="outline" size="sm" onClick={() => openCamera(cameraType)} disabled={isLoading}>
+            <CameraIcon className="mr-2 h-4 w-4" />
+            Use Camera
+        </Button>
+      </div>
       <div className="flex items-center justify-center w-full">
         {fileState.preview ? (
           <div className="relative w-full h-48 rounded-lg overflow-hidden border">
@@ -147,33 +171,40 @@ export default function AnalyzeCurrentUploadPage() {
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur">
-        <div className="container flex h-14 max-w-screen-2xl items-center">
-          <Link href="/analyze-current" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-5 w-5" />
-            Back
-          </Link>
-        </div>
-      </header>
-      <main className="flex-grow flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl">
-          <CardHeader>
-            <CardTitle className="text-2xl font-headline">Upload Your Selfies</CardTitle>
-            <CardDescription>Provide two photos of you wearing your glasses.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {renderUploadBox("front-selfie-upload", "1. Front-facing Selfie", frontSelfie, setFrontSelfie)}
-            {renderUploadBox("side-selfie-upload", "2. Side-profile Selfie", sideSelfie, setSideSelfie)}
-          </CardContent>
-          <CardFooter>
-            <Button size="lg" className="w-full" disabled={!isAnalyzable || isLoading} onClick={handleAnalyze}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {isLoading ? 'Analyzing...' : 'Analyze My Fit'}
-            </Button>
-          </CardFooter>
-        </Card>
-      </main>
-    </div>
+    <>
+      <Camera
+          isOpen={isCameraOpen}
+          onClose={() => setIsCameraOpen(false)}
+          onCapture={handleCapture}
+       />
+      <div className="flex flex-col min-h-screen bg-background text-foreground">
+        <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur">
+          <div className="container flex h-14 max-w-screen-2xl items-center">
+            <Link href="/analyze-current" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-5 w-5" />
+              Back
+            </Link>
+          </div>
+        </header>
+        <main className="flex-grow flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl">
+            <CardHeader>
+              <CardTitle className="text-2xl font-headline">Upload Your Selfies</CardTitle>
+              <CardDescription>Provide two photos of you wearing your glasses.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {renderUploadBox("front-selfie-upload", "1. Front-facing Selfie", frontSelfie, setFrontSelfie, 'front')}
+              {renderUploadBox("side-selfie-upload", "2. Side-profile Selfie", sideSelfie, setSideSelfie, 'side')}
+            </CardContent>
+            <CardFooter>
+              <Button size="lg" className="w-full" disabled={!isAnalyzable || isLoading} onClick={handleAnalyze}>
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isLoading ? 'Analyzing...' : 'Analyze My Fit'}
+              </Button>
+            </CardFooter>
+          </Card>
+        </main>
+      </div>
+    </>
   );
 }
