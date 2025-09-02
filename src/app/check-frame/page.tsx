@@ -45,7 +45,9 @@ export default function CheckFramePage() {
                         </div>
                     </CardContent>
                     <CardFooter className="flex justify-between">
-                         <Button variant="outline">{t('common.learnMore')}</Button>
+                        <Link href="/privacy" passHref>
+                            <Button variant="outline">{t('common.learnMore')}</Button>
+                        </Link>
                          <Link href="/check-frame/upload" passHref>
                             <Button size="lg">
                                 {t('common.continue')}
