@@ -4,12 +4,15 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Camera as CameraIcon, VideoOff, Sun, Moon } from 'lucide-react';
+import { Camera as CameraIcon, VideoOff, Sun, Moon, SwitchCamera } from 'lucide-react';
+
+type FacingMode = 'user' | 'environment';
 
 interface CameraProps {
     isOpen: boolean;
     onClose: () => void;
     onCapture: (dataUri: string) => void;
+    initialFacingMode?: FacingMode;
 }
 
 // Constants for lighting analysis
@@ -18,7 +21,7 @@ const DARK_LIGHT_THRESHOLD = 70; // Below this is "too dark"
 const BRIGHT_LIGHT_THRESHOLD = 180; // Above this is "too bright"
 const ANALYSIS_INTERVAL = 1000; // ms
 
-export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
+export default function Camera({ isOpen, onClose, onCapture, initialFacingMode = 'user' }: CameraProps) {
     const { toast } = useToast();
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -26,17 +29,41 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [feedback, setFeedback] = useState<{ message: string; icon: React.ReactNode } | null>(null);
     const intervalRef = useRef<NodeJS.Timeout>();
+    const [facingMode, setFacingMode] = useState<FacingMode>(initialFacingMode);
+    const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
+
+    useEffect(() => {
+        const checkCameras = async () => {
+            if (navigator.mediaDevices?.enumerateDevices) {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoInputs = devices.filter(device => device.kind === 'videoinput');
+                    setHasMultipleCameras(videoInputs.length > 1);
+                } catch(e) {
+                    console.error("Could not enumerate devices", e)
+                }
+            }
+        };
+        checkCameras();
+    }, []);
+    
+    // Reset facing mode when component re-opens with a new initial mode
+    useEffect(() => {
+        if(isOpen) {
+            setFacingMode(initialFacingMode)
+        }
+    }, [isOpen, initialFacingMode])
 
 
-    const stopAnalysis = () => {
+    const stopAnalysis = useCallback(() => {
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = undefined;
         }
         setFeedback(null);
-    };
+    }, []);
 
-    const startAnalysis = () => {
+    const startAnalysis = useCallback(() => {
         stopAnalysis(); // Ensure no multiple intervals are running
 
         intervalRef.current = setInterval(() => {
@@ -48,7 +75,6 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
             const context = canvas.getContext('2d', { willReadFrequently: true });
             if (!context) return;
             
-            // Set canvas dimensions to match video to avoid distortion
             canvas.width = videoRef.current.videoWidth;
             canvas.height = videoRef.current.videoHeight;
             
@@ -60,12 +86,10 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
             const data = imageData.data;
             let totalBrightness = 0;
 
-            // Sample a subset of pixels for performance
-            for (let i = 0; i < data.length; i += 4 * 10) { // Sample every 10th pixel
+            for (let i = 0; i < data.length; i += 4 * 10) { 
                 const r = data[i];
                 const g = data[i + 1];
                 const b = data[i + 2];
-                // Using luminance formula for better brightness perception
                 const brightness = (0.299 * r + 0.587 * g + 0.114 * b);
                 totalBrightness += brightness;
             }
@@ -81,13 +105,19 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
             }
 
         }, ANALYSIS_INTERVAL);
-    };
+    }, [stopAnalysis]);
 
+    const cleanupStream = useCallback(() => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            setStream(null);
+        }
+    }, [stream]);
 
-    const getCameraPermission = useCallback(async () => {
-        if (stream) return;
+    const getCameraPermission = useCallback(async (mode: FacingMode) => {
+        cleanupStream();
         try {
-            const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
             setStream(cameraStream);
             setHasCameraPermission(true);
         } catch (error) {
@@ -100,26 +130,28 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
             });
             onClose();
         }
-    }, [stream, toast, onClose]);
+    }, [cleanupStream, toast, onClose]);
+
+    const handleSwitchCamera = () => {
+        const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
+        setFacingMode(newFacingMode);
+        getCameraPermission(newFacingMode);
+    };
 
     useEffect(() => {
         if (isOpen) {
-            getCameraPermission();
+            getCameraPermission(facingMode);
         } else {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                setStream(null);
-            }
+            cleanupStream();
             stopAnalysis();
         }
         
         return () => {
-             if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            stopAnalysis();
+             cleanupStream();
+             stopAnalysis();
         }
-    }, [isOpen, getCameraPermission]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
 
 
     useEffect(() => {
@@ -129,7 +161,7 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
                 startAnalysis();
             };
         }
-    }, [stream]);
+    }, [stream, startAnalysis]);
 
     const handleCapture = () => {
         if (videoRef.current && canvasRef.current) {
@@ -170,12 +202,20 @@ export default function Camera({ isOpen, onClose, onCapture }: CameraProps) {
                          </div>
                     )}
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cancel</Button>
-                    <Button onClick={handleCapture} disabled={!hasCameraPermission}>
-                        <CameraIcon className="mr-2 h-4 w-4" />
-                        Take Photo
-                    </Button>
+                <DialogFooter className="sm:justify-between">
+                     {hasMultipleCameras ? (
+                        <Button variant="outline" onClick={handleSwitchCamera} disabled={!hasCameraPermission}>
+                            <SwitchCamera className="mr-2 h-4 w-4" />
+                            Switch Camera
+                        </Button>
+                    ) : <div />}
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={onClose}>Cancel</Button>
+                        <Button onClick={handleCapture} disabled={!hasCameraPermission}>
+                            <CameraIcon className="mr-2 h-4 w-4" />
+                            Take Photo
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

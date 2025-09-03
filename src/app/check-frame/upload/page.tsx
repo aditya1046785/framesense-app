@@ -20,6 +20,8 @@ type FileState = {
   preview: string | null;
 };
 
+type CameraType = 'selfie' | 'frameFront' | 'frameSide';
+
 // Helper function to convert a file to a Base64 Data URI
 const fileToDataUri = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -40,7 +42,7 @@ export default function CheckFrameUploadPage() {
     const [frameSide, setFrameSide] = useState<FileState>({ file: null, preview: null });
     const [isLoading, setIsLoading] = useState(false);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
-    const [activeCamera, setActiveCamera] = useState<'selfie' | 'frameFront' | 'frameSide' | null>(null);
+    const [activeCamera, setActiveCamera] = useState<CameraType | null>(null);
 
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<FileState>>) => {
@@ -91,12 +93,14 @@ export default function CheckFrameUploadPage() {
         }
     };
 
-    const openCamera = (type: 'selfie' | 'frameFront' | 'frameSide') => {
+    const openCamera = (type: CameraType) => {
         setActiveCamera(type);
         setIsCameraOpen(true);
     };
 
     const handleCapture = (dataUri: string) => {
+        if (!activeCamera) return;
+
         const byteString = atob(dataUri.split(',')[1]);
         const mimeString = dataUri.split(',')[0].split(':')[1].split(';')[0];
         const ab = new ArrayBuffer(byteString.length);
@@ -120,7 +124,7 @@ export default function CheckFrameUploadPage() {
         label: string,
         fileState: FileState,
         setter: React.Dispatch<React.SetStateAction<FileState>>,
-        cameraType: 'selfie' | 'frameFront' | 'frameSide'
+        cameraType: CameraType
     ) => (
         <div className="space-y-2">
             <div className="flex justify-between items-center">
@@ -159,6 +163,12 @@ export default function CheckFrameUploadPage() {
             </div>
         </div>
     );
+    
+    const getInitialFacingMode = () => {
+        if (activeCamera === 'selfie') return 'user';
+        if (activeCamera === 'frameFront' || activeCamera === 'frameSide') return 'environment';
+        return 'user';
+    }
 
     return (
         <>
@@ -166,6 +176,7 @@ export default function CheckFrameUploadPage() {
                 isOpen={isCameraOpen}
                 onClose={() => setIsCameraOpen(false)}
                 onCapture={handleCapture}
+                initialFacingMode={getInitialFacingMode()}
             />
             <div className="flex flex-col min-h-screen bg-background text-foreground">
                 <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur">
