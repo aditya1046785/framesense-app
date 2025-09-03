@@ -7,6 +7,7 @@ import { ArrowLeft, CheckCircle, RefreshCw, Share2, Search, Sparkles } from 'luc
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import Chatbot from '@/components/Chatbot';
 
 type AnalysisResults = {
     style: string;
@@ -17,13 +18,32 @@ export default function CheckFrameResultsPage() {
     const router = useRouter();
     const [results, setResults] = useState<AnalysisResults | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [reportText, setReportText] = useState("");
+
+    const generateReportText = (res: AnalysisResults) => {
+        if (!res) return "";
+        return `
+FrameSense Style Analysis Report
+==============================
+
+Identified Style: ${res.style}
+Confidence: ${(res.confidence * 100).toFixed(0)}%
+
+Based on our analysis, frames with a ${res.style} shape are generally a good match for your facial structure.
+        `.trim();
+    }
 
     useEffect(() => {
         const storedResults = sessionStorage.getItem('analysisResults');
         if (storedResults) {
-            setResults(JSON.parse(storedResults));
+            try {
+                const parsedResults = JSON.parse(storedResults);
+                setResults(parsedResults);
+                setReportText(generateReportText(parsedResults));
+            } catch (e) {
+                router.push('/check-frame');
+            }
         } else {
-            // Redirect if no results are found
             router.push('/check-frame');
         }
         setIsLoading(false);
@@ -62,50 +82,54 @@ export default function CheckFrameResultsPage() {
                 </div>
             </header>
             <main className="flex-grow flex items-center justify-center p-4">
-                <Card className="w-full max-w-2xl">
-                    <CardHeader>
-                        <CardTitle className="text-3xl font-headline flex items-center gap-3">
-                            <Sparkles className="w-8 h-8 text-primary" />
-                            Frame Analysis
-                        </CardTitle>
-                        <CardDescription>We've analyzed the style of the frame you uploaded.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <Card className="p-6">
-                             <h3 className="font-semibold text-lg mb-2">Identified Frame Style</h3>
-                             <p className="text-4xl font-bold text-primary capitalize mb-4">{style}</p>
-                             <div className="space-y-2">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-muted-foreground">Confidence</span>
-                                    <span>{confidencePercentage.toFixed(0)}%</span>
-                                </div>
-                                <Progress value={confidencePercentage} />
-                             </div>
-                        </Card>
-                         <div className="p-4 border border-green-500/30 rounded-lg bg-green-500/10 text-green-700 dark:text-green-300">
-                           <div className="flex items-start gap-3">
-                                <CheckCircle className="w-5 h-5 mt-1 text-green-500 shrink-0"/>
-                                <div>
-                                    <h3 className="font-semibold text-green-600 dark:text-green-200">Good News!</h3>
-                                    <p className="text-sm">Based on our analysis, frames with a <strong className="capitalize">{style}</strong> shape are generally a good match for your facial structure. You can proceed with confidence.</p>
-                                </div>
-                           </div>
-                        </div>
-                        
-                    </CardContent>
-                    <CardFooter className="flex flex-col sm:flex-row justify-between gap-4">
-                        <Link href="/check-frame/upload" passHref>
-                            <Button variant="outline" className="w-full sm:w-auto">
-                                <RefreshCw className="mr-2 h-4 w-4" />
-                                Analyze Another Frame
+                 <div className="w-full max-w-2xl space-y-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-3xl font-headline flex items-center gap-3">
+                                <Sparkles className="w-8 h-8 text-primary" />
+                                Frame Analysis
+                            </CardTitle>
+                            <CardDescription>We've analyzed the style of the frame you uploaded.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <Card className="p-6">
+                                 <h3 className="font-semibold text-lg mb-2">Identified Frame Style</h3>
+                                 <p className="text-4xl font-bold text-primary capitalize mb-4">{style}</p>
+                                 <div className="space-y-2">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground">Confidence</span>
+                                        <span>{confidencePercentage.toFixed(0)}%</span>
+                                    </div>
+                                    <Progress value={confidencePercentage} />
+                                 </div>
+                            </Card>
+                             <div className="p-4 border border-green-500/30 rounded-lg bg-green-500/10 text-green-700 dark:text-green-300">
+                               <div className="flex items-start gap-3">
+                                    <CheckCircle className="w-5 h-5 mt-1 text-green-500 shrink-0"/>
+                                    <div>
+                                        <h3 className="font-semibold text-green-600 dark:text-green-200">Good News!</h3>
+                                        <p className="text-sm">Based on our analysis, frames with a <strong className="capitalize">{style}</strong> shape are generally a good match for your facial structure. You can proceed with confidence.</p>
+                                    </div>
+                               </div>
+                            </div>
+                            
+                        </CardContent>
+                        <CardFooter className="flex flex-col sm:flex-row justify-between gap-4">
+                            <Link href="/check-frame/upload" passHref>
+                                <Button variant="outline" className="w-full sm:w-auto">
+                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                    Analyze Another Frame
+                                </Button>
+                            </Link>
+                            <Button className="w-full sm:w-auto">
+                                <Search className="mr-2 h-4 w-4" />
+                                Find Similar Frames
                             </Button>
-                        </Link>
-                        <Button className="w-full sm:w-auto">
-                            <Search className="mr-2 h-4 w-4" />
-                            Find Similar Frames
-                        </Button>
-                    </CardFooter>
-                </Card>
+                        </CardFooter>
+                    </Card>
+
+                    <Chatbot report={reportText} />
+                </div>
             </main>
         </div>
     );
